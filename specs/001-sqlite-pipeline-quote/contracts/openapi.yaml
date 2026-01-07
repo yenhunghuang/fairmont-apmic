@@ -1,0 +1,399 @@
+openapi: 3.1.0
+info:
+  title: Fairmont PDF 報價單處理 API
+  description: |
+    地端 SQLite 多階段 PDF 報價單處理系統。
+
+    ## 功能說明
+    - 上傳多份 PDF 檔案（家具規格書、數量總表、面料表、Index）
+    - 自動解析並產出符合惠而蒙 (Fairmont) 格式的 15 欄位報價單 JSON
+    - 支援快取機制，相同檔案秒級回應
+
+    ## 使用 Swagger 測試
+    1. 點擊「Try it out」
+    2. 選擇多個 PDF 檔案上傳
+    3. 執行後查看 JSON 回應
+  version: 1.0.0
+  contact:
+    name: Fairmont APMIC Team
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://localhost:8000
+    description: 開發環境
+
+tags:
+  - name: quote
+    description: 報價單處理
+  - name: status
+    description: 處理狀態查詢
+
+paths:
+  /api/v1/quote/process:
+    post:
+      tags:
+        - quote
+      summary: 處理 PDF 報價單
+      description: |
+        上傳多份 PDF 檔案，系統自動解析並返回 15 欄位報價單 JSON。
+
+        **支援的 PDF 類型**:
+        - 數量總表 (QUANTITY_SHEET)
+        - 明細規格表 (SPEC_SHEET)
+        - 面料表 (FABRIC_SHEET)
+        - Index 檔案 (INDEX)
+
+        **處理時間**:
+        - 新檔案: 依項目數量，約 1-15 分鐘
+        - 快取命中: < 3 秒
+      operationId: processPdfQuote
+      parameters:
+        - name: supplier_id
+          in: query
+          required: false
+          description: |
+            供應商識別符。若未指定，系統將使用 GenericAdapter 自動偵測格式。
+
+            **可用值**: `fairmont`, `_generic` (自動偵測)
+          schema:
+            type: string
+            default: fairmont
+            enum:
+              - fairmont
+              - _generic
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - files
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: PDF 檔案 (可多選)
+                  minItems: 1
+                  maxItems: 20
+      responses:
+        '200':
+          description: 處理成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteResponse'
+              example:
+                batch_id: "550e8400-e29b-41d4-a716-446655440000"
+                supplier_id: "fairmont"
+                status: "completed"
+                processing_time_ms: 12345
+                cached: false
+                items:
+                  - no: 1
+                    item_no: "DLX-100"
+                    description: "Bedside Table"
+                    photo_base64: "data:image/png;base64,..."
+                    dimension: "600 x 450 x 550"
+                    qty: 10
+                    uom: "ea"
+                    materials_used: "Solid Oak, Lacquered Finish"
+                    location: "Deluxe Room"
+                    note: ""
+                    brand: "Custom Furniture Co."
+                    unit_rate: null
+                    amount: null
+                    cbm: null
+                    total_cbm: null
+                errors: []
+        '400':
+          description: 請求錯誤
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error_code: "INVALID_FILE_TYPE"
+                message: "上傳的檔案必須為 PDF 格式"
+                details:
+                  invalid_files:
+                    - "document.docx"
+        '422':
+          description: 處理錯誤
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error_code: "PROCESSING_FAILED"
+                message: "PDF 解析失敗"
+                details:
+                  failed_files:
+                    - filename: "corrupted.pdf"
+                      error: "無法讀取 PDF 結構"
+        '500':
+          description: 伺服器錯誤
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/quote/status/{batch_id}:
+    get:
+      tags:
+        - status
+      summary: 查詢處理進度
+      description: |
+        查詢指定批次的處理進度。
+
+        **回應說明**:
+        - `current_stage`: 目前處理階段 (1-7)
+        - `progress_percent`: 總體進度百分比
+        - `stage_name`: 當前階段名稱
+      operationId: getQuoteStatus
+      parameters:
+        - name: batch_id
+          in: path
+          required: true
+          description: 批次 UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 進度查詢成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+              example:
+                batch_id: "550e8400-e29b-41d4-a716-446655440000"
+                supplier_id: "fairmont"
+                status: "running"
+                current_stage: 4
+                total_stages: 7
+                stage_name: "資料合併中"
+                progress_percent: 57
+                started_at: "2026-01-07T10:30:00Z"
+                estimated_completion: null
+        '404':
+          description: 批次不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error_code: "BATCH_NOT_FOUND"
+                message: "找不到指定的批次"
+
+  /api/v1/health:
+    get:
+      tags:
+        - status
+      summary: 健康檢查
+      description: 檢查 API 服務狀態
+      operationId: healthCheck
+      responses:
+        '200':
+          description: 服務正常
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  version:
+                    type: string
+                    example: "1.0.0"
+                  database:
+                    type: string
+                    example: "connected"
+
+components:
+  schemas:
+    QuoteResponse:
+      type: object
+      required:
+        - batch_id
+        - status
+        - items
+      properties:
+        batch_id:
+          type: string
+          format: uuid
+          description: 批次識別符
+        supplier_id:
+          type: string
+          description: 使用的供應商適配器
+          example: fairmont
+        status:
+          type: string
+          enum: [completed, failed]
+          description: 處理狀態
+        processing_time_ms:
+          type: integer
+          description: 處理時間 (毫秒)
+        cached:
+          type: boolean
+          description: 是否為快取結果
+        items:
+          type: array
+          description: 報價單項目列表
+          items:
+            $ref: '#/components/schemas/QuoteItem'
+        errors:
+          type: array
+          description: 處理錯誤列表
+          items:
+            $ref: '#/components/schemas/ItemError'
+
+    QuoteItem:
+      type: object
+      description: 15 欄位報價單項目
+      required:
+        - no
+        - item_no
+      properties:
+        no:
+          type: integer
+          description: 序號
+        item_no:
+          type: string
+          description: 項目編號 (如 DLX-100)
+        description:
+          type: string
+          nullable: true
+          description: 品名描述
+        photo_base64:
+          type: string
+          nullable: true
+          description: 產品圖片 (Base64 編碼)
+        dimension:
+          type: string
+          nullable: true
+          description: 尺寸 (寬 x 深 x 高, mm)
+        qty:
+          type: integer
+          nullable: true
+          description: 數量
+        uom:
+          type: string
+          nullable: true
+          description: 單位 (ea, m, etc.)
+        materials_used:
+          type: string
+          nullable: true
+          description: 材料規格
+        location:
+          type: string
+          nullable: true
+          description: 房型/位置
+        note:
+          type: string
+          nullable: true
+          description: 備註
+        brand:
+          type: string
+          nullable: true
+          description: 品牌/供應商
+        unit_rate:
+          type: number
+          nullable: true
+          description: 單價 (預留欄位)
+        amount:
+          type: number
+          nullable: true
+          description: 總價 (預留欄位)
+        cbm:
+          type: number
+          nullable: true
+          description: 材積 (預留欄位)
+        total_cbm:
+          type: number
+          nullable: true
+          description: 總材積 (預留欄位)
+
+    StatusResponse:
+      type: object
+      required:
+        - batch_id
+        - status
+      properties:
+        batch_id:
+          type: string
+          format: uuid
+        supplier_id:
+          type: string
+          description: 使用的供應商適配器
+          example: fairmont
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+          description: 批次狀態
+        current_stage:
+          type: integer
+          minimum: 1
+          maximum: 7
+          description: 當前階段編號
+        total_stages:
+          type: integer
+          description: 總階段數
+        stage_name:
+          type: string
+          description: 當前階段名稱 (繁體中文)
+        progress_percent:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 總體進度百分比
+        started_at:
+          type: string
+          format: date-time
+          description: 開始處理時間
+        estimated_completion:
+          type: string
+          format: date-time
+          nullable: true
+          description: 預估完成時間
+
+    ItemError:
+      type: object
+      properties:
+        item_no:
+          type: string
+          description: 發生錯誤的項目編號
+        error_code:
+          type: string
+          description: 錯誤代碼
+        message:
+          type: string
+          description: 錯誤訊息 (繁體中文)
+
+    ErrorResponse:
+      type: object
+      required:
+        - error_code
+        - message
+      properties:
+        error_code:
+          type: string
+          description: 錯誤代碼
+          enum:
+            - INVALID_FILE_TYPE
+            - FILE_TOO_LARGE
+            - PROCESSING_FAILED
+            - BATCH_NOT_FOUND
+            - DATABASE_ERROR
+            - LLM_ERROR
+            - INTERNAL_ERROR
+        message:
+          type: string
+          description: 錯誤訊息 (繁體中文)
+        details:
+          type: object
+          description: 額外錯誤詳情
