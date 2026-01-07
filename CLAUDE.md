@@ -41,18 +41,33 @@ PDF_PARSING → EXTRACTION → NORMALIZATION → MERGING → FURNITURE → FABRI
     1             2            3             4           5             6            7
 ```
 
-- **Stage 1-2**: PDF 解析與 LLM 資料擷取
+- **Stage 1**: PDF 解析 (pdfplumber + PyMuPDF)
+- **Stage 2**: LLM 資料擷取 + Index PDF Location 提取
 - **Stage 3**: Item No. 正規化 (去空格、統一破折號)
-- **Stage 4**: 合併數量總表 (qty 以數量總表為準 FR-006)
-- **Stage 5-6**: 家具/面料分離與關聯
-- **Stage 7**: 匯出 15 欄位 JSON
+- **Stage 4**: 合併數量總表 + location_map (qty 以數量總表為準)
+- **Stage 5**: 家具項目處理
+- **Stage 6**: 面料關聯 (從面料 PDF 提取 has_repeat 等欄位)
+- **Stage 7**: 匯出 15 欄位 JSON (Fabric-Follows-Furniture 排序)
+
+### 家具 vs 面料處理差異
+
+| 欄位 | 家具 | 面料 |
+|------|------|------|
+| Description | 原始描述 | `{brand} to {furniture_item_no}` |
+| Dimension | `W{w} x D{d} x H{h} mm` | `{材質}-{供應商}-{品牌}-{花色}-{寬度} pattern/plain` |
+| Qty | 數量總表優先 | 留空 |
+| Brand | **強制 Null** | **必填** |
+| Location | Index PDF `@` 後文字 | description `@` 後文字 |
+
+詳見 `docs/EXCEL_OUTPUT_SPECIFICATION.md`
 
 ### 核心元件
 
-- **Pipeline** (`src/services/pipeline.py`): 主要處理邏輯，包含 checkpoint 機制支援斷點續傳 (FR-008)
-- **Queue Lock** (`src/services/queue.py`): 確保一次只處理一個批次 (FR-013)
-- **Cache Service** (`src/services/cache.py`): 相同 Hash 檔案返回快取 (FR-009)
-- **LLM Client** (`src/services/llm_client.py`): 分塊策略保持 Prompt < 2K tokens (FR-010)
+- **Pipeline** (`src/services/pipeline.py`): 主要處理邏輯，checkpoint 機制支援斷點續傳
+- **Adapters** (`src/services/adapters/`): 供應商適配器 (Fairmont/Generic)
+- **Queue Lock** (`src/services/queue.py`): 確保一次只處理一個批次
+- **Cache Service** (`src/services/cache.py`): 相同 Hash 檔案返回快取
+- **LLM Client** (`src/services/llm_client.py`): 分塊策略保持 Prompt < 2K tokens
 
 ### 資料流
 
@@ -61,7 +76,9 @@ UploadFile[] → detect_file_role() → Pipeline.run() → QuoteResponse
                      ↓                    ↓
               FileRole enum         SQLite checkpoint
            (QUANTITY_SHEET,         (processing_stages)
-            SPEC_SHEET, etc.)
+            SPEC_SHEET,
+            FABRIC_SHEET,
+            INDEX)
 ```
 
 ### 狀態管理 (`src/models/entities.py`)
@@ -73,9 +90,9 @@ UploadFile[] → detect_file_role() → Pipeline.run() → QuoteResponse
 ## 關鍵環境變數
 
 ```
-USE_SQLITE_PIPELINE=true   # 啟用新架構 (FR-012)
+USE_SQLITE_PIPELINE=true   # 啟用新架構
 DATABASE_PATH=data/fairmont.db
-OPENAI_API_KEY=...         # LLM API 金鑰
+OPENAI_API_KEY=...         # LLM API 金鑰 (APMIC API)
 ```
 
 ## 測試
@@ -88,5 +105,5 @@ OPENAI_API_KEY=...         # LLM API 金鑰
 ## 功能規格
 
 - 規格: `specs/001-sqlite-pipeline-quote/spec.md`
-- 計畫: `specs/001-sqlite-pipeline-quote/plan.md`
+- 輸出規格: `docs/EXCEL_OUTPUT_SPECIFICATION.md`
 - 資料模型: `specs/001-sqlite-pipeline-quote/data-model.md`

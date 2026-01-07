@@ -534,45 +534,60 @@ class Pipeline:
         fabric_files = [f for f in self.parsed_files if f["role"] == FileRole.FABRIC_SHEET]
 
         if fabric_files:
-            system_prompt = """從面料表中提取所有面料項目。
+            system_prompt = """從面料規格表中提取所有面料項目。PDF 格式如下：
+- ITEM NO.: 面料編號 (如 DLX-505)
+- ITEM: 面料描述，包含關聯家具 (如 "Fabric @ DLX-102 and DLX-106 Sofa")
+- VENDOR: 供應商名稱 (如 "Sankon Interior Limited")
+- DESCRIPTION 區塊包含:
+  - Brand: 品牌名稱
+  - Pattern Name / Pattern Code: 花色編號
+  - Width: 幅寬
+  - Content: 材質成分
 
 只輸出 JSON 陣列，格式：
 [{
-  "item_no": "500-001",
-  "brand": "Morbern Europe",
-  "pattern": "Prodigy PRO-682",
-  "color": "Lt Neutral",
-  "width": "137cmW",
-  "content": "Vinyl-First Edition",
-  "vendor": "Morbern Europe",
-  "materials": "Pattern: Prodigy PRO-682. Color: Lt Neutral. Rub Test: 300,000 Martindale Cycles. Fire Rating: NF P 92-503 (M2)",
-  "furniture_com": "DLX-100",
+  "item_no": "DLX-505",
+  "description": "Fabric @ DLX-102 and DLX-106 Sofa",
+  "vendor": "Sankon Interior Limited",
+  "brand": "Bravo Collection",
+  "pattern": "BV106-05M084C",
+  "width": "140 cm",
+  "content": "55% cotton , 40% viscose , 5% linen",
+  "materials": "Abrasion: 40,000 Double Rubs",
+  "furniture_com": "DLX-102 AND DLX-106",
   "has_repeat": true
 }, ...]
 
 欄位說明：
-- item_no: 面料項目編號 (500 系列)
-- brand: 品牌 (如 Morbern Europe)
-- pattern: 花色名稱
-- color: 顏色
-- width: 幅寬 (如 137cmW)
-- content: 材質類型 (如 Vinyl-First Edition)
-- vendor: 供應商
-- materials: 完整規格描述 (Pattern, Color, Rub Test, Fire Rating 等)
-- furniture_com: 關聯的家具 Item No.
-- has_repeat: 是否有重複圖案 (true/false)
+- item_no: ITEM NO. 欄位的值
+- description: ITEM 欄位的完整文字
+- vendor: VENDOR 欄位的供應商名稱
+- brand: DESCRIPTION 中 Brand 的值
+- pattern: DESCRIPTION 中 Pattern Name / Pattern Code 的值
+- width: DESCRIPTION 中 Width 的值
+- content: DESCRIPTION 中 Content 的值 (材質成分)
+- materials: DESCRIPTION 中其他規格 (如 Abrasion)
+- furniture_com: 從 ITEM 欄位提取關聯家具編號 (@ 後的 DLX-xxx)
+- has_repeat: 是否有重複圖案 (預設 true)
 
 不要輸出任何其他說明文字。"""
 
             try:
                 for fabric_file in fabric_files:
                     items = await self.llm.call_chunked(system_prompt, fabric_file["text"])
+                    self.logger.info(f"面料 LLM 回傳 {len(items)} 項")
                     for item in items:
                         if "item_no" in item:
                             item["item_no"] = normalize_item_no(item["item_no"])
                         # 正規化 furniture_com
                         if "furniture_com" in item and item["furniture_com"]:
                             item["furniture_com"] = normalize_item_no(item["furniture_com"])
+                        # 日誌記錄面料項目詳情 (INFO 級別)
+                        self.logger.info(
+                            f"面料項目: {item.get('item_no')} | "
+                            f"furniture_com={item.get('furniture_com')} | "
+                            f"brand={item.get('brand')}"
+                        )
                         self.fabric_items.append(item)
             except Exception as e:
                 self.logger.warning("面料表解析失敗", error=str(e))
@@ -632,31 +647,54 @@ class Pipeline:
         return result
 
     def _build_furniture_fabric_map(self) -> dict[str, list[dict]]:
-        """建立 furniture item_no → [fabric items] 映射"""
+        """建立 furniture item_no → [fabric items] 映射
+
+        處理 furniture_com 可能包含 "AND" 連接多個家具項目的情況
+        例如: "DLX-102 AND DLX-106" → 同時關聯到 DLX-102 和 DLX-106
+        """
         mapping: dict[str, list[dict]] = {}
 
         for fabric in self.fabric_items:
             furniture_com = fabric.get("furniture_com", "")
             if furniture_com:
-                if furniture_com not in mapping:
-                    mapping[furniture_com] = []
-                mapping[furniture_com].append(fabric)
+                # 分割 "AND" 連接的多個家具項目
+                furniture_items = [
+                    normalize_item_no(item.strip())
+                    for item in furniture_com.upper().split("AND")
+                ]
+                for furniture_item_no in furniture_items:
+                    if furniture_item_no:
+                        if furniture_item_no not in mapping:
+                            mapping[furniture_item_no] = []
+                        mapping[furniture_item_no].append(fabric)
 
         return mapping
 
     def _get_orphan_fabrics(self, furniture_to_fabrics: dict[str, list[dict]]) -> list[dict]:
-        """取得無關聯家具的面料"""
-        # 收集所有已關聯的面料 item_no
-        associated_fabric_nos = set()
-        for fabrics in furniture_to_fabrics.values():
-            for fabric in fabrics:
-                associated_fabric_nos.add(fabric.get("item_no", ""))
+        """取得無關聯家具的面料
+
+        孤立面料定義：
+        1. 沒有 furniture_com 的面料
+        2. 有 furniture_com 但對應的家具不在 furniture_items 中的面料
+        """
+        # 建立現有家具項目編號集合
+        existing_furniture_nos = {
+            normalize_item_no(f.get("item_no", ""))
+            for f in self.furniture_items
+        }
+
+        # 收集已輸出的面料 item_no (只有當對應家具存在時才算已輸出)
+        output_fabric_nos = set()
+        for furniture_no, fabrics in furniture_to_fabrics.items():
+            if furniture_no in existing_furniture_nos:
+                for fabric in fabrics:
+                    output_fabric_nos.add(fabric.get("item_no", ""))
 
         # 找出孤立面料
         orphans = []
         for fabric in self.fabric_items:
             fabric_item_no = fabric.get("item_no", "")
-            if fabric_item_no not in associated_fabric_nos:
+            if fabric_item_no not in output_fabric_nos:
                 orphans.append(fabric)
 
         return orphans
@@ -715,8 +753,36 @@ class Pipeline:
             has_repeat=is_pattern_fabric(has_repeat),
         )
 
-        # 格式化 Description: {brand} to {furniture_item_no}
-        description = format_fabric_description(brand, furniture_item_no)
+        # 格式化 Description: {material_type} to {furniture_item_no}
+        # 根據 EXCEL_OUTPUT_SPECIFICATION.md 規格
+        original_desc = fabric.get("description", "")
+
+        # 從原始描述中提取材質類型 (@ 之前的部分)
+        material_type = None
+        if original_desc and "@" in original_desc:
+            # "Fabric @ DLX-102 Sofa" → "Fabric"
+            material_type = original_desc.split("@")[0].strip()
+        elif original_desc:
+            material_type = original_desc
+
+        # 若無法提取，根據 content 推斷
+        if not material_type:
+            if content:
+                first_part = content.split("-")[0].strip()
+                if not any(char.isdigit() for char in first_part[:3]):
+                    material_type = first_part
+            if not material_type:
+                if "vinyl" in (content or "").lower():
+                    material_type = "Vinyl"
+                elif "leather" in (content or "").lower():
+                    material_type = "Leather"
+                else:
+                    material_type = "Fabric"
+
+        # 優先使用 furniture_com (完整的關聯家具編號，如 "DLX-102 AND DLX-106")
+        # 若 furniture_com 為空，則使用傳入的 furniture_item_no
+        target_furniture = fabric.get("furniture_com") or furniture_item_no
+        description = format_fabric_description(material_type, target_furniture)
 
         return QuoteItem(
             # 1-7: 核心欄位

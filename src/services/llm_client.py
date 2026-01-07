@@ -43,8 +43,8 @@ def split_content_to_chunks(content: str, max_tokens: int = 2000) -> list[str]:
         return [""]
 
     # 估計每個 token 約 4 個字元 (英文)，中文約 1.5 個字元
-    # 保守估計使用 3 個字元
-    max_chars = max_tokens * 3
+    # 混合中英文使用更保守的估計: 2 字元/token
+    max_chars = max_tokens * 2
 
     if len(content) <= max_chars:
         return [content]

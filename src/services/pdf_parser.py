@@ -27,21 +27,33 @@ def detect_file_role(filename: str, content_preview: str = "") -> FileRole:
     if "qty" in filename_lower or "quantity" in filename_lower or "overall" in filename_lower:
         return FileRole.QUANTITY_SHEET
 
-    if "fabric" in filename_lower or "leather" in filename_lower:
+    # Fabric/Leather 檔名判斷 (必須是專門的面料表)
+    if "fabric" in filename_lower and "leather" in filename_lower:
+        return FileRole.FABRIC_SHEET
+    if filename_lower.startswith("fabric") or filename_lower.startswith("leather"):
         return FileRole.FABRIC_SHEET
 
     if "index" in filename_lower:
         return FileRole.INDEX
 
-    # 根據內容判斷
-    if "qty" in content_lower or "total quantity" in content_lower:
+    # Casegoods, Seatings, Furniture 等為規格表
+    if any(kw in filename_lower for kw in ["casegood", "seating", "furniture", "spec"]):
+        return FileRole.SPEC_SHEET
+
+    # 根據內容判斷 (更嚴格的條件)
+    if "qty" in content_lower and "total" in content_lower:
         return FileRole.QUANTITY_SHEET
 
-    if "500-" in content_lower or "vinyl" in content_lower or "fabric" in content_lower:
+    # 面料表的判斷：開頭是 "500 Fabric" 或內容主要是面料描述
+    if content_lower.startswith("500 fabric") or "500 fabric, vinyl" in content_lower:
         return FileRole.FABRIC_SHEET
 
-    if "index" in content_lower or "table of contents" in content_lower:
+    if "index" in content_lower and "project name" in content_lower:
         return FileRole.INDEX
+
+    # 規格表特徵：包含 "100 Seating" 或 "ITEM NO.:" 等
+    if "100 seating" in content_lower or "item no.:" in content_lower:
+        return FileRole.SPEC_SHEET
 
     # 預設為規格表
     return FileRole.SPEC_SHEET
