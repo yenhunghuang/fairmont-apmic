@@ -225,9 +225,12 @@ def get_next_stage(current_stage: StageName) -> StageName | None:
 class Pipeline:
     """7 階段處理管線"""
 
-    def __init__(self, batch_uuid: str, supplier_id: str = "fairmont"):
+    def __init__(
+        self, batch_uuid: str, supplier_id: str = "fairmont", include_images: bool = False
+    ):
         self.batch_uuid = batch_uuid
         self.supplier_id = supplier_id
+        self.include_images = include_images
         self.logger = PipelineLogger(batch_uuid)
         self.pdf_parser = get_pdf_parser()
         self.llm = get_llm()
@@ -241,6 +244,7 @@ class Pipeline:
         self.fabric_items: list[dict] = []
         self.final_items: list[dict] = []
         self.location_map: dict[str, str] = {}  # item_no → location (從 Index 提取)
+        self.attachment_images: dict[str, dict] = {}  # item_no → image_dict (從 ATTACHMENT 頁面提取)
 
     async def run(
         self,
@@ -370,7 +374,7 @@ class Pipeline:
                 # 擷取文字
                 text = self.pdf_parser.extract_text_from_bytes(content)
 
-                # 擷取圖片
+                # 擷取圖片 (保留原有方法供 fallback)
                 images = self.pdf_parser.extract_images_from_bytes(content)
 
                 # 偵測檔案角色
@@ -382,8 +386,25 @@ class Pipeline:
                         "role": role,
                         "text": text,
                         "images": images,
+                        "content": content,  # 保存原始內容供 ATTACHMENT 提取使用
                     }
                 )
+
+                # 針對規格表，從 ATTACHMENT 頁面提取產品主圖
+                if role == FileRole.SPEC_SHEET:
+                    try:
+                        attachment_imgs = self.pdf_parser.extract_attachment_images_from_bytes(
+                            content
+                        )
+                        self.attachment_images.update(attachment_imgs)
+                        self.logger.debug(
+                            f"ATTACHMENT 圖片提取: {len(attachment_imgs)} 筆",
+                            file=filename,
+                        )
+                    except Exception as e:
+                        self.logger.warning(
+                            f"ATTACHMENT 圖片提取失敗: {filename}", error=str(e)
+                        )
 
                 self.logger.debug(f"解析完成: {filename}", role=role.value)
             except Exception as e:
@@ -404,15 +425,30 @@ class Pipeline:
             system_prompt = """你是專業的家具報價單解析助手。
 從 PDF 內容中提取所有家具項目。
 
+PDF 格式說明：
+- ITEM NO.: 項目編號
+- ITEM: 項目描述
+- DESCRIPTION 區塊包含:
+  - Overall Dimensions: 整體尺寸（這是 dimension 的主要來源）
+  - 其他材質規格說明
+
 只輸出 JSON 陣列，格式：
 [{
   "item_no": "DLX-100",
-  "description": "Bedside Table",
-  "dimension": "600 x 450 x 550",
+  "description": "King Bed",
+  "dimension": "L2130 x W1930 x HT290mm",
   "uom": "ea",
-  "materials": "Solid Oak",
-  "brand": "Custom"
+  "materials": "10mm THK Rebonded FR Foam",
+  "brand": null
 }, ...]
+
+欄位說明：
+- item_no: ITEM NO. 欄位的值
+- description: ITEM 欄位的描述文字
+- dimension: 從 "Overall Dimensions" 欄位提取，只取尺寸數值部分（如 "W650 x D150 x HT400mm"），不要包含後面的說明文字（如 "Final Dimensions to be Coordinated..."）
+- uom: 單位，預設 "ea"
+- materials: 從 DESCRIPTION 中的材質/規格說明
+- brand: 家具通常為 null
 
 不要輸出任何其他說明文字。"""
 
@@ -423,18 +459,60 @@ class Pipeline:
             except Exception as e:
                 self.logger.warning("擷取失敗", error=str(e))
 
-        # 從 Index PDF 提取 Location (@ 之後文字)
+        # 從 Index PDF 提取 Location (房型位置 - 包含所有位置)
         index_files = [f for f in self.parsed_files if f["role"] == FileRole.INDEX]
         if index_files:
-            index_prompt = """從 Index 檔案中提取項目編號與位置資訊。
+            index_prompt = """從 Index 檔案中提取項目編號與所有房型位置資訊。
+
+Index PDF 格式說明：
+- 每個項目以 Item No. 開頭，如 "DLX-100"
+- 每個項目下方會有多行以 @ 開頭的房型位置，如 "@ King Deluxe Room Type A 1 Pc"
+- 請提取該項目下所有房型位置，用 " / " 連接（注意斜線兩側有空格）
+
+範例 1：
+```
+DLX-108.1 DELUXE ROOM FOR BID Pillow A @ DLX-108 L-Shaped Sofa
+@Corner Grand King Room 2 Pcs
+```
+對於此例：item_no = "DLX-108.1"，location = "Corner Grand King Room"
+（只有一個位置，直接輸出）
+
+範例 2：
+```
+DLX-100 DELUXE ROOM FOR BID King Bed
+@ King Deluxe Room Type A 1 Pc
+@ King Deluxe Room Type B 1 Pc
+@ End King Deluxe Room 1 Pc
+@ Grand King Deluxe Room Type A 1 Pc
+@ Grand King Deluxe Room Type B 1 Pc
+```
+對於此例：item_no = "DLX-100"，location = "King Deluxe Room Type A / King Deluxe Room Type B / End King Deluxe Room / Grand King Deluxe Room Type A / Grand King Deluxe Room Type B"
+（多個位置用 " / " 連接）
+
+範例 3：
+```
+DLX-104 DELUXE ROOM FOR BID Lounge Chair
+@ Grand King Deluxe Room Type A 1 Pc
+@ Grand King Deluxe Room Type B 1 Pc
+@ Double Deluxe Room 2 Pcs
+@ Double Deluxe Room Type B 2 Pcs
+@ Double Deluxe Room Type C 2 Pcs
+@ Double Deluxe Room Type D 2 Pcs
+@ Grand Double Deluxe Room 2 Pcs
+```
+對於此例：item_no = "DLX-104"，location = "Grand King Deluxe Room Type A / Grand King Deluxe Room Type B / Double Deluxe Room / Double Deluxe Room Type B / Double Deluxe Room Type C / Double Deluxe Room Type D / Grand Double Deluxe Room"
 
 只輸出 JSON 陣列，格式：
 [{
   "item_no": "DLX-100",
-  "location": "Deluxe Room"
+  "location": "King Deluxe Room Type A / King Deluxe Room Type B / ..."
 }, ...]
 
-注意：location 應該是 description 中 @ 符號之後的文字。
+注意：
+1. location 是項目下方以 @ 開頭的房型名稱，需去掉 @ 符號和數量 (如 "1 Pc", "2 Pcs")
+2. 請提取所有房型位置，用 " / " 連接
+3. location 不應包含 item_no 本身或 "DELUXE ROOM" 這類通用欄位
+4. Description 中的 @ 符號後是關聯家具，不是房型位置
 不要輸出任何其他說明文字。"""
 
             try:
@@ -469,7 +547,7 @@ class Pipeline:
         self.logger.stage_complete("NORMALIZATION", 3, duration_ms)
 
     async def _stage_merging(self):
-        """Stage 4: 資料合併 (FR-006: qty 以數量總表為準)"""
+        """Stage 4: 資料合併 (FR-006: qty 以數量總表為準，相同 item_no 去重)"""
         self.logger.stage_start("MERGING", 4)
         start = time.time()
 
@@ -496,10 +574,33 @@ class Pipeline:
             except Exception as e:
                 self.logger.warning("數量總表解析失敗", error=str(e))
 
-        # 合併數量與 Location
+        # 按 item_no 去重並合併欄位 (保留資訊最完整的版本)
+        item_map: dict[str, dict] = {}
         for item in self.normalized_items:
-            merged = dict(item)
-            item_no = merged.get("item_no", "")
+            item_no = item.get("item_no", "")
+            if not item_no:
+                continue
+
+            if item_no not in item_map:
+                # 首次出現，直接加入
+                item_map[item_no] = dict(item)
+            else:
+                # 重複出現，合併欄位（保留非空值，優先保留有 dimension 的版本）
+                existing = item_map[item_no]
+                for key, value in item.items():
+                    if key == "item_no":
+                        continue
+                    # 優先保留非空值
+                    if value and not existing.get(key):
+                        existing[key] = value
+                    # 若新值的 dimension 更完整，使用新值
+                    elif key == "dimension" and value:
+                        existing_dim = existing.get("dimension", "") or ""
+                        if len(str(value)) > len(str(existing_dim)):
+                            existing[key] = value
+
+        # 合併數量與 Location
+        for item_no, merged in item_map.items():
             # 合併數量 (FR-006: 以數量總表為準)
             if item_no in qty_map:
                 merged["qty"] = qty_map[item_no]
@@ -507,6 +608,10 @@ class Pipeline:
             if item_no in self.location_map:
                 merged["location"] = self.location_map[item_no]
             self.merged_items.append(merged)
+
+        self.logger.info(
+            f"合併去重完成: {len(self.normalized_items)} 項 → {len(self.merged_items)} 項"
+        )
 
         duration_ms = int((time.time() - start) * 1000)
         self.logger.stage_complete("MERGING", 4, duration_ms)
@@ -706,12 +811,15 @@ class Pipeline:
         """格式化家具項目 (brand 強制 Null)"""
         item_no = item.get("item_no", "")
 
+        # 根據 include_images 決定是否包含圖片
+        photo = image_map.get(item_no) if self.include_images else None
+
         return QuoteItem(
             # 1-7: 核心欄位
             no=seq_no,
             item_no=item_no,
             description=item.get("description"),
-            photo_base64=image_map.get(item_no),
+            photo_base64=photo,
             dimension=item.get("dimension") or item.get("dimensions"),
             qty=item.get("qty"),
             uom=item.get("uom") or "ea",
@@ -785,12 +893,19 @@ class Pipeline:
         target_furniture = fabric.get("furniture_com") or furniture_item_no
         description = format_fabric_description(material_type, target_furniture)
 
+        # 根據 include_images 決定是否包含圖片
+        photo = image_map.get(item_no) if self.include_images else None
+
+        # 面料的 location: 從 ITEM 欄位的 @ 之後提取關聯家具編號
+        # 格式如 "DLX-102 AND DLX-106" 或單一家具 "DLX-104"
+        fabric_location = target_furniture
+
         return QuoteItem(
             # 1-7: 核心欄位
             no=seq_no,
             item_no=item_no,
             description=description,
-            photo_base64=image_map.get(item_no),
+            photo_base64=photo,
             dimension=dimension,
             qty=None,  # 面料 qty 留空
             uom=fabric.get("uom") or "m",
@@ -801,44 +916,62 @@ class Pipeline:
             total_cbm=None,
             note=None,
             # 13-15: 元資料欄位
-            location=None,  # 面料通常無 location
+            location=fabric_location,  # 面料 location: @ 之後的家具編號
             materials_used=fabric.get("materials"),
             brand=brand,  # 面料 brand 必填
         )
 
     def _build_image_map(self) -> dict[str, str]:
-        """建立家具 item_no 到 Base64 圖片的對照"""
-        spec_files = [f for f in self.parsed_files if f["role"] == FileRole.SPEC_SHEET]
+        """建立家具 item_no 到 Base64 圖片的對照
 
+        優先使用 ATTACHMENT 頁面提取的產品主圖，
+        若無則留空 (不使用 fallback 以避免選到 logo)。
+        """
         image_map = {}
-        for spec_file in spec_files:
-            images = spec_file.get("images", [])
-            for i, img in enumerate(images):
-                if i < len(self.furniture_items):
-                    item = self.furniture_items[i]
-                    item_no = item.get("item_no", "")
-                    if item_no and item_no not in image_map:
-                        ext = img.get("ext", "png")
-                        mime = f"image/{ext}"
-                        image_map[item_no] = encode_image_base64(img["data"], mime)
+
+        # 優先使用 ATTACHMENT 頁面的圖片 (已按 item_no 關聯)
+        for item_no, img_data in self.attachment_images.items():
+            ext = img_data.get("ext", "png")
+            mime = f"image/{ext}"
+            image_map[item_no] = encode_image_base64(img_data["data"], mime)
+
+        self.logger.debug(
+            f"家具圖片映射完成: {len(image_map)} 筆來自 ATTACHMENT 頁面"
+        )
 
         return image_map
 
     def _build_fabric_image_map(self) -> dict[str, str]:
-        """建立面料 item_no 到 Base64 圖片的對照"""
+        """建立面料 item_no 到 Base64 圖片的對照
+
+        從面料 PDF 的 ATTACHMENT 頁面提取產品主圖。
+        若 ATTACHMENT 頁面沒有合適的產品圖（如都是長條形 logo），則留空。
+        """
         fabric_files = [f for f in self.parsed_files if f["role"] == FileRole.FABRIC_SHEET]
 
         image_map = {}
         for fabric_file in fabric_files:
-            images = fabric_file.get("images", [])
-            for i, img in enumerate(images):
-                if i < len(self.fabric_items):
-                    fabric = self.fabric_items[i]
-                    item_no = fabric.get("item_no", "")
-                    if item_no and item_no not in image_map:
-                        ext = img.get("ext", "png")
-                        mime = f"image/{ext}"
-                        image_map[item_no] = encode_image_base64(img["data"], mime)
+            content = fabric_file.get("content")
+            if not content:
+                continue
+
+            try:
+                attachment_imgs = self.pdf_parser.extract_attachment_images_from_bytes(
+                    content
+                )
+                for item_no, img_data in attachment_imgs.items():
+                    ext = img_data.get("ext", "png")
+                    mime = f"image/{ext}"
+                    image_map[item_no] = encode_image_base64(img_data["data"], mime)
+            except Exception as e:
+                self.logger.warning(
+                    f"面料 ATTACHMENT 圖片提取失敗: {fabric_file.get('filename')}",
+                    error=str(e),
+                )
+
+        self.logger.debug(
+            f"面料圖片映射完成: {len(image_map)} 筆來自 ATTACHMENT 頁面"
+        )
 
         return image_map
 
@@ -847,6 +980,7 @@ async def run_pipeline(
     batch_uuid: str,
     files: list[tuple[str, bytes]],
     supplier_id: str = "fairmont",
+    include_images: bool = False,
 ) -> QuoteResponse:
     """執行管線處理
 
@@ -854,9 +988,10 @@ async def run_pipeline(
         batch_uuid: 批次 UUID
         files: 檔案列表 (檔名, 內容)
         supplier_id: 供應商 ID
+        include_images: 是否包含產品圖片
 
     Returns:
         處理結果
     """
-    pipeline = Pipeline(batch_uuid, supplier_id)
+    pipeline = Pipeline(batch_uuid, supplier_id, include_images=include_images)
     return await pipeline.run(files)

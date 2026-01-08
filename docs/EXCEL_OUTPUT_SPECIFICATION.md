@@ -20,7 +20,7 @@
 | 10 | **Unit CBM** | (空白 - 採購手動填寫) | (空白 - 採購手動填寫) |
 | 11 | **Total CBM** | (空白 - 採購手動填寫) | (空白 - 採購手動填寫) |
 | 12 | **Note** | (空白 - 採購手動填寫) |  (空白 - 採購手動填寫) |
-| 13 | **Location** | index中的原始 `description` @之後文字 | 從描述文字提取 `@` 之後內容 |
+| 13 | **Location** | index中的原始 `description` @之後文字 | PDF `ITEM:`提取 `@` 之後的家具 |
 | 14 | **Materials Used / Specs** | 原始材質/規格的`description`詳細描述 | 原始面料規格`description`文字 |
 | 15 | **Brand** | **Null (強制留空)** | **必填** (取 `brand`) |
 
@@ -29,7 +29,7 @@
 ## 2. 核心處理差異說明
 
 ### A. Dimension 欄位定義
-*   **家具**：必須是物理尺寸。若為圓形家具，格式改為 `Dia.{d} x H{h} mm`。
+*   **家具**：必須是物理尺寸，優先取自 PDF 中的 `Overall Dimensions` 欄位。只取尺寸數值部分（如 `L2130 x W1930 x HT290mm`），不包含後面的說明文字。若為圓形家具，格式改為 `Dia.{d} x H{h} mm`。
 *   **面料**：並非實體長寬，而是為了在 15 欄位中展示面料身份。系統會組合 `Content` (成份), `Vendor`, `Brand`, `Pattern` (花色), `Color` (顏色), `Fabric Width` (幅寬) 成為一個完整的描述字串。
 
 ### B. Brand 欄位定義
