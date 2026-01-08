@@ -21,7 +21,7 @@
 | 11 | **Total CBM** | (空白 - 採購手動填寫) | (空白 - 採購手動填寫) |
 | 12 | **Note** | (空白 - 採購手動填寫) |  (空白 - 採購手動填寫) |
 | 13 | **Location** | index中的原始 `description` @之後文字 | PDF `ITEM:`提取 `@` 之後的家具 |
-| 14 | **Materials Used / Specs** | 原始材質/規格的`description`詳細描述 | 原始面料規格`description`文字 |
+| 14 | **Materials Used / Specs** | 原始材質/規格的`description`詳細描述 | **規格字串組合**<br>`Pattern: {pattern}. Color: {color}. Rub Test: {abrasion}`<br>`Fire Rating: {fire_rating}` |
 | 15 | **Brand** | **Null (強制留空)** | **必填** (取 `brand`) |
 
 ---
@@ -36,5 +36,14 @@
 *   **家具**：在惠而蒙格式中，家具通常視為 OEM 產品，不特別標註品牌，故設為 `Null`。
 *   **面料**：面料品牌 (如 JAB, Kvadrat 等) 是報價與採購的關鍵，系統會透過專門的 Prompt 強制提取並顯示。
 
-### C. 排序邏輯 (Fabric-Follows-Furniture)
+### C. Materials Used / Specs 欄位定義
+*   **家具**：從 PDF 的 DESCRIPTION 區塊提取原始材質規格描述。
+*   **面料**：組合多個規格欄位成為完整描述字串，格式為：
+    ```
+    Pattern: {pattern}. Color: {color}. Rub Test: {abrasion}
+    Fire Rating: {fire_rating}
+    ```
+    可選欄位（若有）：`Horizontal Repeat`, `Vertical Repeat`, `Pattern Direction`
+
+### D. 排序邏輯 (Fabric-Follows-Furniture)
 在匯出 Excel 時，系統會自動偵測面料所屬的家具項目。面料項目會被安排在對應家具項目的下一列，NO. 序號會連號，以利檢核。

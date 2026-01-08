@@ -646,9 +646,15 @@ DLX-104 DELUXE ROOM FOR BID Lounge Chair
 - DESCRIPTION 區塊包含:
   - Brand: 品牌名稱
   - Pattern Name / Pattern Code: 花色編號
+  - Color: 顏色
   - Width: 幅寬
   - Content: 材質成分
+  - Rub Test / Abrasion: 耐磨測試
+  - Fire Rating: 防火等級
   - Horizontal Repeat / Vertical Repeat: 重複圖案尺寸 (只有部分面料有)
+  - Pattern Direction: 圖案方向 (只有部分面料有)
+  - Collection: 系列名稱 (只有部分面料有)
+  - Match: 拼接方式 (只有部分面料有)
 
 只輸出 JSON 陣列，格式：
 [{
@@ -657,9 +663,14 @@ DLX-104 DELUXE ROOM FOR BID Lounge Chair
   "vendor": "Sankon Interior Limited",
   "brand": "Bravo Collection",
   "pattern": "BV106-05M084C",
+  "color": "Cream",
   "width": "140 cm",
   "content": "55% cotton , 40% viscose , 5% linen",
-  "materials": "Abrasion: 40,000 Double Rubs",
+  "abrasion": "40,000 Double Rubs",
+  "fire_rating": "NFPA 260, Class 1",
+  "horizontal_repeat": "14cm",
+  "vertical_repeat": "16cm",
+  "pattern_direction": "Non-railroaded",
   "furniture_com": "DLX-102 AND DLX-106",
   "has_repeat": false
 }, ...]
@@ -670,13 +681,20 @@ DLX-104 DELUXE ROOM FOR BID Lounge Chair
 - vendor: VENDOR 欄位的供應商名稱
 - brand: DESCRIPTION 中 Brand 的值
 - pattern: DESCRIPTION 中 Pattern Name / Pattern Code 的值
+- color: DESCRIPTION 中 Color 的值
 - width: DESCRIPTION 中 Width 的值
 - content: DESCRIPTION 中 Content 的值 (材質成分)
-- materials: DESCRIPTION 中其他規格 (如 Abrasion)
+- abrasion: DESCRIPTION 中 Rub Test 或 Abrasion 的值 (如 "300,000 Martindale Cycles" 或 "40,000 Double Rubs")
+- fire_rating: DESCRIPTION 中 Fire Rating 的值 (如 "NF P 92-503 (M2)" 或 "NFPA 260, Class 1")
+- horizontal_repeat: DESCRIPTION 中 Horizontal Repeat 的值
+- vertical_repeat: DESCRIPTION 中 Vertical Repeat 的值
+- pattern_direction: DESCRIPTION 中 Pattern Direction 的值
 - furniture_com: 從 ITEM 欄位提取關聯家具編號 (@ 後的 DLX-xxx)
 - has_repeat: 只有當 DESCRIPTION 中有 "Horizontal Repeat" 或 "Vertical Repeat" 欄位時才設為 true，否則設為 false
 
-不要輸出任何其他說明文字。"""
+注意：
+- 所有欄位若 PDF 中沒有對應資訊則設為 null
+- 不要輸出任何其他說明文字。"""
 
             try:
                 for fabric_file in fabric_files:
@@ -900,6 +918,10 @@ DLX-104 DELUXE ROOM FOR BID Lounge Chair
         # 格式如 "DLX-102 AND DLX-106" 或單一家具 "DLX-104"
         fabric_location = target_furniture
 
+        # 格式化 Materials Used / Specs
+        # 根據 Excel 範本格式：Pattern: xxx. Color: xxx. Rub Test: xxx\nFire Rating: xxx
+        materials_used = self._format_fabric_materials_used(fabric)
+
         return QuoteItem(
             # 1-7: 核心欄位
             no=seq_no,
@@ -917,9 +939,84 @@ DLX-104 DELUXE ROOM FOR BID Lounge Chair
             note=None,
             # 13-15: 元資料欄位
             location=fabric_location,  # 面料 location: @ 之後的家具編號
-            materials_used=fabric.get("materials"),
+            materials_used=materials_used,
             brand=brand,  # 面料 brand 必填
         )
+
+    def _format_fabric_materials_used(self, fabric: dict) -> str | None:
+        """格式化面料的 Materials Used / Specs 欄位
+
+        根據 Excel 範本格式，組合以下欄位：
+        - Pattern: 花色編號
+        - Color: 顏色
+        - Rub Test / Abrasion: 耐磨測試
+        - Fire Rating: 防火等級
+        - Horizontal/Vertical Repeat: 重複尺寸 (如有)
+
+        範例輸出:
+        "Pattern: Prodigy PRO-682. Color: Lt Neutral. Rub Test: 300,000 Martindale Cycles
+        Fire Rating: NF P 92-503 (M2)"
+        """
+        parts = []
+
+        # Pattern (花色編號)
+        pattern = fabric.get("pattern")
+        if pattern:
+            parts.append(f"Pattern: {pattern}")
+
+        # Color (顏色)
+        color = fabric.get("color")
+        if color:
+            parts.append(f"Color: {color}")
+
+        # Rub Test / Abrasion (耐磨測試)
+        abrasion = fabric.get("abrasion")
+        if abrasion:
+            # 統一使用 "Rub Test" 標籤
+            parts.append(f"Rub Test: {abrasion}")
+
+        # Fire Rating (防火等級)
+        fire_rating = fabric.get("fire_rating")
+        if fire_rating:
+            parts.append(f"Fire Rating: {fire_rating}")
+
+        # Horizontal Repeat (水平重複)
+        h_repeat = fabric.get("horizontal_repeat")
+        if h_repeat:
+            parts.append(f"Horizontal Repeat: {h_repeat}")
+
+        # Vertical Repeat (垂直重複)
+        v_repeat = fabric.get("vertical_repeat")
+        if v_repeat:
+            parts.append(f"Vertical Repeat: {v_repeat}")
+
+        # Pattern Direction (圖案方向)
+        pattern_dir = fabric.get("pattern_direction")
+        if pattern_dir:
+            parts.append(f"Pattern Direction: {pattern_dir}")
+
+        if not parts:
+            return None
+
+        # 組合格式：前幾個用 ". " 連接，Fire Rating 換行顯示
+        # 根據 Excel 範本格式
+        result_parts = []
+        fire_rating_part = None
+
+        for part in parts:
+            if part.startswith("Fire Rating:"):
+                fire_rating_part = part
+            else:
+                result_parts.append(part)
+
+        result = ". ".join(result_parts)
+        if fire_rating_part:
+            if result:
+                result += "\n" + fire_rating_part
+            else:
+                result = fire_rating_part
+
+        return result if result else None
 
     def _build_image_map(self) -> dict[str, str]:
         """建立家具 item_no 到 Base64 圖片的對照
