@@ -543,6 +543,7 @@ class Pipeline:
   - Pattern Name / Pattern Code: 花色編號
   - Width: 幅寬
   - Content: 材質成分
+  - Horizontal Repeat / Vertical Repeat: 重複圖案尺寸 (只有部分面料有)
 
 只輸出 JSON 陣列，格式：
 [{
@@ -555,7 +556,7 @@ class Pipeline:
   "content": "55% cotton , 40% viscose , 5% linen",
   "materials": "Abrasion: 40,000 Double Rubs",
   "furniture_com": "DLX-102 AND DLX-106",
-  "has_repeat": true
+  "has_repeat": false
 }, ...]
 
 欄位說明：
@@ -568,7 +569,7 @@ class Pipeline:
 - content: DESCRIPTION 中 Content 的值 (材質成分)
 - materials: DESCRIPTION 中其他規格 (如 Abrasion)
 - furniture_com: 從 ITEM 欄位提取關聯家具編號 (@ 後的 DLX-xxx)
-- has_repeat: 是否有重複圖案 (預設 true)
+- has_repeat: 只有當 DESCRIPTION 中有 "Horizontal Repeat" 或 "Vertical Repeat" 欄位時才設為 true，否則設為 false
 
 不要輸出任何其他說明文字。"""
 
@@ -741,7 +742,7 @@ class Pipeline:
         width = fabric.get("width")
         content = fabric.get("content")
         vendor = fabric.get("vendor")
-        has_repeat = fabric.get("has_repeat", True)
+        has_repeat = fabric.get("has_repeat", False)  # 預設 False (plain)
 
         # 格式化 Dimension: {材質}-{供應商}-{品牌}-{花色}-{寬度} pattern/plain
         dimension = format_fabric_dimension(

@@ -100,11 +100,11 @@ def is_pattern_fabric(has_repeat: bool | None) -> bool:
 
     Args:
         has_repeat: 從 PDF 中判斷是否有 repeat (重複圖案)
-                   若為 None 則預設為 True (pattern)
+                   若為 None 則預設為 False (plain)
 
     Returns:
         True = pattern, False = plain
     """
     if has_repeat is None:
-        return True  # 預設為 pattern
+        return False  # 預設為 plain
     return bool(has_repeat)

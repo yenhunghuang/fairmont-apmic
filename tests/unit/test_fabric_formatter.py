@@ -178,6 +178,6 @@ class TestIsPatternFabric:
         """無 repeat = plain"""
         assert is_pattern_fabric(False) is False
 
-    def test_none_defaults_to_pattern(self):
-        """None 預設為 pattern"""
-        assert is_pattern_fabric(None) is True
+    def test_none_defaults_to_plain(self):
+        """None 預設為 plain (只有明確有 Repeat 欄位才是 pattern)"""
+        assert is_pattern_fabric(None) is False
