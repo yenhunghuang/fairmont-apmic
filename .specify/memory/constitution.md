@@ -1,50 +1,79 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+============================================================================
+SYNC IMPACT REPORT
+============================================================================
+Version Change: N/A → 1.0.0 (Initial ratification)
+Bump Rationale: Initial constitution establishment for PDF Q&A System
+
+Modified Principles: N/A (new document)
+
+Added Sections:
+- Core Principles (5 principles)
+  - I. 代碼品質 (Code Quality)
+  - II. 測試標準 (Testing Standards)
+  - III. UX 一致性 (UX Consistency)
+  - IV. 效能要求 (Performance Standards)
+  - V. 語言要求 (Language Requirements)
+- Governance
+
+Removed Sections: N/A (template sections replaced)
+
+Templates Requiring Updates:
+- .specify/templates/plan-template.md ✅ No updates needed (Constitution Check
+  section already references constitution file dynamically)
+- .specify/templates/spec-template.md ✅ No updates needed (Requirements section
+  is generic and aligns with constitution principles)
+- .specify/templates/tasks-template.md ✅ No updates needed (Test-first workflow
+  mentioned aligns with Principle II)
+- .specify/templates/commands/*.md ⚠️ Directory does not exist - N/A
+
+Follow-up TODOs: None
+============================================================================
+-->
+
+# PDF Q&A System Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. 代碼品質 (Code Quality)
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+- 自文檔化代碼，命名清晰。
+- 合併前強制進行代碼審查。
+- 語法檢查/格式化零警告。
+- 公共 API 必須具有內嵌文件。
+- 第三方依賴需要安全審查。
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### II. 測試標準 (Testing Standards - NON-NEGOTIABLE)
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+- **測試優先開發**：編寫測試 → 驗證失敗 → 實作 → 驗證通過。
+- 最低 80% 代碼覆蓋率（關鍵路徑 100%）。
+- 必需的測試類型：單元、整合、E2E。
+- 合併前所有測試必須通過。
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### III. UX 一致性 (UX Consistency)
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+- WCAG 2.1 Level AA 可訪問性合規。
+- 響應式設計（行動/平板/桌面）。
+- 繁體中文清晰的錯誤訊息。
+- 操作 >100ms 的載入狀態。
+- 國際化支援。
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### IV. 效能要求 (Performance Standards)
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+- API 回應時間：<300ms (p95) 標準、Q&A <15 秒。
+- 頁面載入：<2 秒。
+- 支援 10+ 併發使用者。
+- 資料庫查詢必須使用索引（無 N+1 問題）。
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### V. 語言要求 (Language Requirements)
+
+- **繁體中文 (zh-TW)**：規格、計畫、使用者文件、API 文件、UI 文字、錯誤訊息。
+- **允許英文**：代碼註解、內部筆記、第三方文件。
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+- 憲法高於所有其他實踐。
+- 修訂需要記錄、批准和遷移計畫。
+- 所有 PR/審查必須驗證合規性。
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2026-01-07 | **Last Amended**: 2026-01-07

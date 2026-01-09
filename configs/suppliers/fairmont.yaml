@@ -1,0 +1,125 @@
+# Fairmont (惠而蒙) 供應商配置
+# 用於 FairmontAdapter 的 YAML 配置
+
+supplier_id: fairmont
+display_name: "惠而蒙 Fairmont"
+version: "1.0.0"
+
+# PDF 角色識別規則
+role_detection:
+  quantity_sheet:
+    # 數量總表必須包含這些欄位
+    must_contain:
+      - "CODE"
+      - "TOTAL QTY"
+    # 檔案名稱模式 (可選)
+    file_pattern: "(?i)(数量|qty|quantity).*表|schedule"
+
+  spec_sheet:
+    # 規格書包含這些關鍵字之一
+    must_contain_any:
+      - "DIMENSION"
+      - "MATERIALS"
+      - "SPECIFICATION"
+      - "尺寸"
+      - "材質"
+    file_pattern: "(?i)spec|规格|specification"
+
+  fabric_sheet:
+    # 面料表包含這些關鍵字 (至少 2 個)
+    must_contain_any:
+      - "Brand"
+      - "Pattern"
+      - "Color"
+      - "Width"
+      - "Content"
+      - "Abrasion"
+      - "Vendor"
+    min_match: 2
+    file_pattern: "(?i)fabric|面料|leather|皮革"
+
+  index:
+    # Index 檔案必須包含房型和位置
+    must_contain:
+      - "ROOM"
+      - "LOCATION"
+    file_pattern: "(?i)index|索引"
+
+# Item No. 正規化規則
+item_normalization:
+  # 匹配模式: DLX-100, DLX-201.1, SUT-200 等
+  pattern: "^([A-Z]{2,4})\\s*-?\\s*(\\d+)(?:\\s*\\.?\\s*(\\d+))?$"
+  # 輸出格式
+  format: "{prefix}-{number}{suffix}"
+  # 範例
+  examples:
+    - input: "DLX-201 .1"
+      output: "DLX-201.1"
+    - input: "DLX 100"
+      output: "DLX-100"
+    - input: "dlx-100"
+      output: "DLX-100"
+    - input: "SUT - 200"
+      output: "SUT-200"
+
+# 面料識別規則
+fabric_detection:
+  # 500-599 系列為面料項目
+  series_range: [500, 599]
+  # 或匹配這些模式
+  patterns:
+    - "^5\\d{2}$"  # 純數字 500-599
+    - "^FAB-"     # FAB- 開頭
+
+# LLM Prompt 模板
+prompts:
+  item_detection: |
+    從以下 Fairmont 家具規格書中找出所有項目編號。
+    Fairmont 的項目編號格式通常是：DLX-100, SUT-200, 501 等。
+
+    輸出格式 (JSON 陣列):
+    [{"item_no": "DLX-100", "source_page": 1}, ...]
+
+    PDF 內容:
+    {context}
+
+    請只輸出 JSON。
+
+  item_extraction: |
+    提取 Fairmont 家具規格：
+    - item_no: 項目編號 (DLX-XXX 格式)
+    - description: 品名 (英文)
+    - dimensions: 尺寸 (寬W x 深D x 高H mm)
+    - materials: 材質規格
+    - brand: 供應商名稱
+
+    PDF 內容:
+    {context}
+
+    輸出 JSON 格式。
+
+  qty_extraction: |
+    從 Fairmont 數量總表提取數量資訊。
+    欄位通常包含 CODE 和 TOTAL QTY。
+
+    輸出格式:
+    [{"item_no": "DLX-100", "qty": 50}, ...]
+
+    數量總表:
+    {context}
+
+# 欄位映射 (供應商欄位 → 17 欄位)
+field_mapping:
+  item_no: "item_no"
+  description: "description"
+  dimension: "dimensions"
+  qty: "qty"
+  uom: "uom"
+  materials_used: "materials"
+  location: "room_type"
+  brand: "supplier_name"
+
+# 預設值
+defaults:
+  uom: "ea"  # 預設單位
+  location: ""
