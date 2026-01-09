@@ -108,7 +108,7 @@ prompts:
     數量總表:
     {context}
 
-# 欄位映射 (供應商欄位 → 15 欄位)
+# 欄位映射 (供應商欄位 → 17 欄位)
 field_mapping:
   item_no: "item_no"
   description: "description"

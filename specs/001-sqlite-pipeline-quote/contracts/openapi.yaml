@@ -6,7 +6,7 @@ info:
 
     ## 功能說明
     - 上傳多份 PDF 檔案（家具規格書、數量總表、面料表、Index）
-    - 自動解析並產出符合惠而蒙 (Fairmont) 格式的 15 欄位報價單 JSON
+    - 自動解析並產出符合惠而蒙 (Fairmont) 格式的 17 欄位報價單 JSON
     - 支援快取機制，相同檔案秒級回應
 
     ## 使用 Swagger 測試
@@ -36,7 +36,7 @@ paths:
         - quote
       summary: 處理 PDF 報價單
       description: |
-        上傳多份 PDF 檔案，系統自動解析並返回 15 欄位報價單 JSON。
+        上傳多份 PDF 檔案，系統自動解析並返回 17 欄位報價單 JSON。
 
         **支援的 PDF 類型**:
         - 數量總表 (QUANTITY_SHEET)
@@ -95,19 +95,38 @@ paths:
                 items:
                   - no: 1
                     item_no: "DLX-100"
-                    description: "Bedside Table"
+                    description: "King Bed"
                     photo_base64: "data:image/png;base64,..."
-                    dimension: "600 x 450 x 550"
+                    dimension: "W2130 x D1930 x H290mm"
                     qty: 10
                     uom: "ea"
-                    materials_used: "Solid Oak, Lacquered Finish"
-                    location: "Deluxe Room"
-                    note: ""
-                    brand: "Custom Furniture Co."
+                    materials_used: "10mm THK Rebonded FR Foam"
+                    location: "King Deluxe Room"
+                    note: null
+                    brand: null
                     unit_rate: null
                     amount: null
-                    cbm: null
+                    unit_cbm: null
                     total_cbm: null
+                    category: 1
+                    affiliate: null
+                  - no: 2
+                    item_no: "DLX-505"
+                    description: "Fabric to DLX-100"
+                    photo_base64: "data:image/png;base64,..."
+                    dimension: "55% cotton-Sankon-Bravo-BV106-140cm pattern"
+                    qty: null
+                    uom: "m"
+                    materials_used: "Pattern: BV106. Color: Cream"
+                    location: "DLX-100"
+                    note: null
+                    brand: "Bravo Collection"
+                    unit_rate: null
+                    amount: null
+                    unit_cbm: null
+                    total_cbm: null
+                    category: 5
+                    affiliate: "DLX-100"
                 errors: []
         '400':
           description: 請求錯誤
@@ -254,10 +273,11 @@ components:
 
     QuoteItem:
       type: object
-      description: 15 欄位報價單項目
+      description: 17 欄位報價單項目
       required:
         - no
         - item_no
+        - category
       properties:
         no:
           type: integer
@@ -309,14 +329,21 @@ components:
           type: number
           nullable: true
           description: 總價 (預留欄位)
-        cbm:
+        unit_cbm:
           type: number
           nullable: true
-          description: 材積 (預留欄位)
+          description: 單位材積 (預留欄位)
         total_cbm:
           type: number
           nullable: true
           description: 總材積 (預留欄位)
+        category:
+          type: integer
+          description: 產品分類代號 (1=家具, 5=面料)
+        affiliate:
+          type: string
+          nullable: true
+          description: 所屬家具 (面料專用，多個用 ', ' 分隔)
 
     StatusResponse:
       type: object

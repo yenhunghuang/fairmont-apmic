@@ -7,7 +7,7 @@
 
 ## Summary
 
-開發單一 FastAPI 端點，接受多份 PDF 檔案上傳，透過 SQLite 多階段管線處理，輸出符合惠而蒙 (Fairmont) 格式的 15 欄位 JSON 報價單資料。前後端分離架構，後端專注於 API 設計，使用 Swagger 介面供前端工程師測試。
+開發單一 FastAPI 端點，接受多份 PDF 檔案上傳，透過 SQLite 多階段管線處理，輸出符合惠而蒙 (Fairmont) 格式的 17 欄位 JSON 報價單資料。前後端分離架構，後端專注於 API 設計，使用 Swagger 介面供前端工程師測試。
 
 ## Technical Context
 

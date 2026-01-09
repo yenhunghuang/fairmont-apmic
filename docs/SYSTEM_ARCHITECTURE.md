@@ -24,7 +24,7 @@
 
 ### 1.1 系統目的
 
-本系統為**地端 (On-Premise) 運行的家具報價單自動化處理系統**，專為惠而蒙 (Fairmont) 供應商報價單設計。核心目標是將供應商提供的多份 PDF 檔案（家具規格書、數量總表、面料表、Index）自動解析並轉換為標準化的 15 欄位 Excel 報價單，大幅減少人工處理時間。
+本系統為**地端 (On-Premise) 運行的家具報價單自動化處理系統**，專為惠而蒙 (Fairmont) 供應商報價單設計。核心目標是將供應商提供的多份 PDF 檔案（家具規格書、數量總表、面料表、Index）自動解析並轉換為標準化的 17 欄位 Excel 報價單，大幅減少人工處理時間。
 
 ### 1.2 核心價值
 
@@ -201,7 +201,7 @@
            ├─ Fabric-Follows-Furniture 排序
            ├─ 格式化家具項目 (brand = null)
            ├─ 格式化面料項目 (dimension 為規格字串)
-           └─ 輸出 15 欄位 JSON
+           └─ 輸出 17 欄位 JSON
        │
        ▼
 [儲存快取 → 返回 QuoteResponse]
@@ -443,7 +443,7 @@ def is_fabric_item(item_no: str) -> bool:
 
 #### Stage 7: EXPORT (匯出)
 
-**目的**: 產生符合 Fairmont 15 欄位規範的 JSON 輸出
+**目的**: 產生符合 Fairmont 17 欄位規範的 JSON 輸出
 
 **輸入**:
 - Stage 5 的 furniture_items

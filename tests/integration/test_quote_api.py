@@ -64,7 +64,7 @@ class TestQuoteProcessAPI:
     def test_response_format_15_fields(
         self, test_client: TestClient, sample_pdf_bytes: bytes | None
     ):
-        """測試回應包含 15 欄位結構"""
+        """測試回應包含 17 欄位結構"""
         if sample_pdf_bytes is None:
             pytest.skip("沒有可用的測試 PDF 檔案")
 
@@ -75,7 +75,7 @@ class TestQuoteProcessAPI:
         data = response.json()
         assert "items" in data
 
-        # 如果有項目，驗證 15 欄位
+        # 如果有項目，驗證 17 欄位
         expected_fields = [
             "no",
             "item_no",
@@ -90,8 +90,10 @@ class TestQuoteProcessAPI:
             "brand",
             "unit_rate",
             "amount",
-            "cbm",
+            "unit_cbm",
             "total_cbm",
+            "category",
+            "affiliate",
         ]
         if data["items"]:
             item = data["items"][0]

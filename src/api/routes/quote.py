@@ -32,7 +32,7 @@ router = APIRouter(tags=["quote"])
     },
     summary="處理 PDF 報價單",
     description="""
-上傳多份 PDF 檔案，系統自動解析並返回 15 欄位報價單 JSON。
+上傳多份 PDF 檔案，系統自動解析並返回 17 欄位報價單 JSON。
 
 **支援的 PDF 類型**:
 - 數量總表 (QUANTITY_SHEET)
@@ -47,6 +47,10 @@ async def process_pdf_quote(
         str,
         Query(description="供應商識別符"),
     ] = "fairmont",
+    include_images: Annotated[
+        bool,
+        Query(description="是否包含產品圖片 (base64)，設為 false 可減少回應大小"),
+    ] = False,
 ) -> QuoteResponse:
     """處理 PDF 報價單"""
     settings = get_settings()
@@ -139,7 +143,9 @@ async def process_pdf_quote(
         from src.services.pipeline import run_pipeline
 
         try:
-            result = await run_pipeline(batch_uuid, file_contents, supplier_id)
+            result = await run_pipeline(
+                batch_uuid, file_contents, supplier_id, include_images=include_images
+            )
 
             # 儲存快取 (T049)
             cache_result = {

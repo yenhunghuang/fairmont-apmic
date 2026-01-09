@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 
 class QuoteItem(BaseModel):
-    """15 欄位報價單項目 (符合 EXCEL_OUTPUT_SPECIFICATION.md)"""
+    """17 欄位報價單項目 (符合 EXCEL_OUTPUT_SPECIFICATION.md)"""
 
     # 1-7: 核心解析欄位
     no: int = Field(..., description="序號")
@@ -29,6 +29,10 @@ class QuoteItem(BaseModel):
     location: str | None = Field(None, description="房型/位置 (@ 之後文字)")
     materials_used: str | None = Field(None, description="材料規格")
     brand: str | None = Field(None, description="品牌 (家具:Null, 面料:必填)")
+
+    # 16-17: 分類與關聯欄位
+    category: int = Field(..., description="產品分類 (1=家具, 5=面料)")
+    affiliate: str | None = Field(None, description="所屬家具 (面料專用, 多個用 ', ' 分隔)")
 
 
 class ItemError(BaseModel):

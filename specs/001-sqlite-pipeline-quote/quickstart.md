@@ -94,7 +94,7 @@ curl -X GET "http://localhost:8000/api/v1/health"
 
 ## 回應格式範例
 
-### 成功回應
+### 成功回應 (17 欄位)
 
 ```json
 {
@@ -106,19 +106,40 @@ curl -X GET "http://localhost:8000/api/v1/health"
     {
       "no": 1,
       "item_no": "DLX-100",
-      "description": "Bedside Table",
+      "description": "King Bed",
       "photo_base64": "data:image/png;base64,...",
-      "dimension": "600 x 450 x 550",
+      "dimension": "W2130 x D1930 x H290mm",
       "qty": 10,
       "uom": "ea",
-      "materials_used": "Solid Oak, Lacquered Finish",
-      "location": "Deluxe Room",
-      "note": "",
-      "brand": "Custom Furniture Co.",
+      "materials_used": "10mm THK Rebonded FR Foam",
+      "location": "King Deluxe Room",
+      "note": null,
+      "brand": null,
       "unit_rate": null,
       "amount": null,
-      "cbm": null,
-      "total_cbm": null
+      "unit_cbm": null,
+      "total_cbm": null,
+      "category": 1,
+      "affiliate": null
+    },
+    {
+      "no": 2,
+      "item_no": "DLX-505",
+      "description": "Fabric to DLX-100",
+      "photo_base64": "data:image/png;base64,...",
+      "dimension": "55% cotton-Sankon-Bravo-BV106-140cm pattern",
+      "qty": null,
+      "uom": "m",
+      "materials_used": "Pattern: BV106. Color: Cream",
+      "location": "DLX-100",
+      "note": null,
+      "brand": "Bravo Collection",
+      "unit_rate": null,
+      "amount": null,
+      "unit_cbm": null,
+      "total_cbm": null,
+      "category": 5,
+      "affiliate": "DLX-100"
     }
   ],
   "errors": []

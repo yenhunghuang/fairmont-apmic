@@ -720,7 +720,7 @@ DLX-104 DELUXE ROOM FOR BID Lounge Chair
         self.logger.stage_complete("FABRIC_LINKING", 6, duration_ms)
 
     async def _stage_export(self) -> list[QuoteItem]:
-        """Stage 7: 匯出 15 欄位 JSON (Fabric-Follows-Furniture)"""
+        """Stage 7: 匯出 17 欄位 JSON (Fabric-Follows-Furniture)"""
         self.logger.stage_start("EXPORT", 7)
         start = time.time()
 
@@ -826,7 +826,7 @@ DLX-104 DELUXE ROOM FOR BID Lounge Chair
     def _format_furniture_item(
         self, item: dict, seq_no: int, image_map: dict[str, str]
     ) -> QuoteItem:
-        """格式化家具項目 (brand 強制 Null)"""
+        """格式化家具項目 (brand 強制 Null, category=1)"""
         item_no = item.get("item_no", "")
 
         # 根據 include_images 決定是否包含圖片
@@ -851,6 +851,9 @@ DLX-104 DELUXE ROOM FOR BID Lounge Chair
             location=item.get("location"),
             materials_used=item.get("materials"),
             brand=None,  # 家具 brand 強制 Null
+            # 16-17: 分類與關聯欄位
+            category=1,  # 家具 category = 1
+            affiliate=None,  # 家具無附屬關係
         )
 
     def _format_fabric_item(
@@ -922,6 +925,18 @@ DLX-104 DELUXE ROOM FOR BID Lounge Chair
         # 根據 Excel 範本格式：Pattern: xxx. Color: xxx. Rub Test: xxx\nFire Rating: xxx
         materials_used = self._format_fabric_materials_used(fabric)
 
+        # 格式化 affiliate: 將 furniture_com 中的 "AND" 轉換為 ", " 分隔
+        # 例如: "DLX-102 AND DLX-106" → "DLX-102, DLX-106"
+        affiliate = None
+        if target_furniture:
+            # 分割 "AND" 並用 ", " 重新連接
+            furniture_parts = [
+                normalize_item_no(part.strip())
+                for part in target_furniture.upper().split("AND")
+                if part.strip()
+            ]
+            affiliate = ", ".join(furniture_parts) if furniture_parts else None
+
         return QuoteItem(
             # 1-7: 核心欄位
             no=seq_no,
@@ -941,6 +956,9 @@ DLX-104 DELUXE ROOM FOR BID Lounge Chair
             location=fabric_location,  # 面料 location: @ 之後的家具編號
             materials_used=materials_used,
             brand=brand,  # 面料 brand 必填
+            # 16-17: 分類與關聯欄位
+            category=5,  # 面料 category = 5
+            affiliate=affiliate,  # 所屬家具，多個用 ", " 分隔
         )
 
     def _format_fabric_materials_used(self, fabric: dict) -> str | None:

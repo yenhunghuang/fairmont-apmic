@@ -54,7 +54,7 @@ class ParsedPDF:
 
 @dataclass
 class QuoteItem:
-    """15 欄位報價單項目 (符合 EXCEL_OUTPUT_SPECIFICATION.md)"""
+    """17 欄位報價單項目 (符合 EXCEL_OUTPUT_SPECIFICATION.md)"""
 
     # 1-7: 核心解析欄位
     no: int  # 序號
@@ -74,6 +74,9 @@ class QuoteItem:
     location: str | None = None  # 房型/位置 (@ 之後文字)
     materials_used: str | None = None  # 材料規格
     brand: str | None = None  # 品牌 (家具:Null, 面料:必填)
+    # 16-17: 分類與關聯欄位
+    category: int = 1  # 產品分類 (1=家具, 5=面料)
+    affiliate: str | None = None  # 所屬家具 (面料專用)
 
 
 @dataclass
@@ -176,14 +179,14 @@ class SupplierAdapter(Protocol):
 
     def map_to_output(self, raw_item: RawItem, sequence: int) -> QuoteItem:
         """
-        將原始項目映射到統一 15 欄位輸出
+        將原始項目映射到統一 17 欄位輸出
 
         Args:
             raw_item: 從 PDF 提取的原始項目
             sequence: 序號
 
         Returns:
-            QuoteItem: 15 欄位報價單項目
+            QuoteItem: 17 欄位報價單項目
         """
         ...
 

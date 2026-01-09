@@ -1,6 +1,6 @@
-# Fairmont 報價單 15 欄位輸出邏輯規格
+# Fairmont 報價單 17 欄位輸出邏輯規格
 
-本文件定義家具 (Furniture) 與面料 (Fabric) 在 15 欄位 Excel 報價單中的資料來源與格式化規則。
+本文件定義家具 (Furniture) 與面料 (Fabric) 在 17 欄位 Excel 報價單中的資料來源與格式化規則。
 
 ---
 
@@ -23,6 +23,8 @@
 | 13 | **Location** | index中的原始 `description` @之後文字 | PDF `ITEM:`提取 `@` 之後的家具 |
 | 14 | **Materials Used / Specs** | 原始材質/規格的`description`詳細描述 | **規格字串組合**<br>`Pattern: {pattern}. Color: {color}. Rub Test: {abrasion}`<br>`Fire Rating: {fire_rating}` |
 | 15 | **Brand** | **Null (強制留空)** | **必填** (取 `brand`) |
+| 16 | **Category** | **1** (家具分類代號) | **5** (面料分類代號) |
+| 17 | **Affiliate** | **Null (留空)** | **所屬家具編號** (多個用 `, ` 分隔，如 `DLX-102, DLX-106`) |
 
 ---
 
@@ -30,7 +32,7 @@
 
 ### A. Dimension 欄位定義
 *   **家具**：必須是物理尺寸，優先取自 PDF 中的 `Overall Dimensions` 欄位。只取尺寸數值部分（如 `L2130 x W1930 x HT290mm`），不包含後面的說明文字。若為圓形家具，格式改為 `Dia.{d} x H{h} mm`。
-*   **面料**：並非實體長寬，而是為了在 15 欄位中展示面料身份。系統會組合 `Content` (成份), `Vendor`, `Brand`, `Pattern` (花色), `Color` (顏色), `Fabric Width` (幅寬) 成為一個完整的描述字串。
+*   **面料**：並非實體長寬，而是為了在 17 欄位中展示面料身份。系統會組合 `Content` (成份), `Vendor`, `Brand`, `Pattern` (花色), `Color` (顏色), `Fabric Width` (幅寬) 成為一個完整的描述字串。
 
 ### B. Brand 欄位定義
 *   **家具**：在惠而蒙格式中，家具通常視為 OEM 產品，不特別標註品牌，故設為 `Null`。
@@ -45,5 +47,19 @@
     ```
     可選欄位（若有）：`Horizontal Repeat`, `Vertical Repeat`, `Pattern Direction`
 
-### D. 排序邏輯 (Fabric-Follows-Furniture)
+### D. Category 欄位定義
+產品分類代號，用於區分不同類型的產品：
+*   **1**: 家具 (Furniture)
+*   **5**: 面料 (Fabric)
+
+未來可擴充更多分類代號，如燈具、窗簾等。
+
+### E. Affiliate 欄位定義
+標示面料所屬的家具項目：
+*   **家具**：此欄位留空 (Null)
+*   **面料**：填入所屬的家具 Item No.，若面料關聯多個家具，使用 `, ` (逗號加空格) 分隔
+    *   範例：`DLX-102` (單一家具)
+    *   範例：`DLX-102, DLX-106` (多個家具)
+
+### F. 排序邏輯 (Fabric-Follows-Furniture)
 在匯出 Excel 時，系統會自動偵測面料所屬的家具項目。面料項目會被安排在對應家具項目的下一列，NO. 序號會連號，以利檢核。

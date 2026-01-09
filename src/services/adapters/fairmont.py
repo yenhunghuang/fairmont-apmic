@@ -301,11 +301,12 @@ PDF 內容:
 
     def map_to_output(self, raw_item: RawItem, sequence: int) -> QuoteItem:
         """
-        將原始項目映射到 15 欄位輸出
+        將原始項目映射到 17 欄位輸出
 
         Fairmont 特定映射：
         - item_no 會被正規化
         - 面料項目的 dimension 使用特定格式
+        - category 區分家具(1)與面料(5)
         """
         normalized_item_no = self.normalize_item_no(raw_item.item_no)
 

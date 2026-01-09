@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 專案概述
 
-地端 SQLite 多階段 PDF 報價單處理系統。接受多份供應商 PDF 上傳，透過 7 階段管線處理，輸出符合 Fairmont 格式的 15 欄位 JSON 報價單。
+地端 SQLite 多階段 PDF 報價單處理系統。接受多份供應商 PDF 上傳，透過 7 階段管線處理，輸出符合 Fairmont 格式的 17 欄位 JSON 報價單。
 
 ## 常用指令
 
@@ -47,27 +47,33 @@ PDF_PARSING → EXTRACTION → NORMALIZATION → MERGING → FURNITURE → FABRI
 - **Stage 4**: 合併數量總表 + location_map (qty 以數量總表為準)
 - **Stage 5**: 家具項目處理
 - **Stage 6**: 面料關聯 (從面料 PDF 提取 has_repeat 等欄位)
-- **Stage 7**: 匯出 15 欄位 JSON (Fabric-Follows-Furniture 排序)
+- **Stage 7**: 匯出 17 欄位 JSON (Fabric-Follows-Furniture 排序)
+
+每階段完成後會將中間結果存入 SQLite checkpoint，支援斷點續傳。
 
 ### 家具 vs 面料處理差異
 
 | 欄位 | 家具 | 面料 |
 |------|------|------|
-| Description | 原始描述 | `{brand} to {furniture_item_no}` |
-| Dimension | `W{w} x D{d} x H{h} mm` | `{材質}-{供應商}-{品牌}-{花色}-{寬度} pattern/plain` |
+| Description | 原始描述 | `{material_type} to {furniture_item_no}` |
+| Dimension | `W{w} x D{d} x H{h} mm` | `{Content}-{Vendor}-{Brand}-{Pattern}-{Width} pattern/plain` |
 | Qty | 數量總表優先 | 留空 |
-| Brand | **強制 Null** | **必填** |
+| Brand | **強制 Null** (OEM) | **必填** |
 | Location | Index PDF `@` 後文字 | description `@` 後文字 |
+| Materials Used | 原始材質規格描述 | `Pattern: {pattern}. Color: {color}. Rub Test: {abrasion}` |
+| Category | **1** (家具分類代號) | **5** (面料分類代號) |
+| Affiliate | **Null** (留空) | 所屬家具 Item No.，多個用 `, ` 分隔 |
 
 詳見 `docs/EXCEL_OUTPUT_SPECIFICATION.md`
 
 ### 核心元件
 
 - **Pipeline** (`src/services/pipeline.py`): 主要處理邏輯，checkpoint 機制支援斷點續傳
-- **Adapters** (`src/services/adapters/`): 供應商適配器 (Fairmont/Generic)
-- **Queue Lock** (`src/services/queue.py`): 確保一次只處理一個批次
-- **Cache Service** (`src/services/cache.py`): 相同 Hash 檔案返回快取
+- **Adapters** (`src/services/adapters/`): 供應商適配器 (Fairmont/Generic)，透過 Protocol 定義介面
+- **Queue Lock** (`src/services/queue.py`): asyncio.Lock + DB 狀態確保一次只處理一個批次
+- **Cache Service** (`src/services/cache.py`): SHA256 Hash 檔案快取，TTL 1 天
 - **LLM Client** (`src/services/llm_client.py`): 分塊策略保持 Prompt < 2K tokens
+- **PDF Parser** (`src/services/pdf_parser.py`): 檔案角色偵測 + 圖片去重
 
 ### 資料流
 
@@ -81,18 +87,39 @@ UploadFile[] → detect_file_role() → Pipeline.run() → QuoteResponse
             INDEX)
 ```
 
+### 檔案角色偵測邏輯 (`src/services/pdf_parser.py:detect_file_role`)
+
+優先順序：檔名關鍵字 → 內容關鍵字 → 預設 SPEC_SHEET
+- `qty/quantity/overall` → QUANTITY_SHEET
+- `fabric/leather` (排他) → FABRIC_SHEET
+- `index` → INDEX
+- `casegood/seating/furniture/spec` → SPEC_SHEET
+
 ### 狀態管理 (`src/models/entities.py`)
 
 - `BatchStatus`: PENDING → RUNNING → COMPLETED/FAILED
 - `StageStatus`: PENDING → RUNNING → COMPLETED/FAILED/RETRYING
 - `StageName`: 7 階段 enum
+- `FileRole`: QUANTITY_SHEET, SPEC_SHEET, FABRIC_SHEET, INDEX
+
+## API 端點
+
+```
+POST /api/v1/quote/process   # 處理 PDF 報價單 (multipart/form-data)
+GET  /api/v1/quote/status/{batch_id}  # 查詢處理進度
+GET  /api/v1/health          # 健康檢查
+```
+
+Header: `X-API-Key: <API_KEY>`
 
 ## 關鍵環境變數
 
 ```
-USE_SQLITE_PIPELINE=true   # 啟用新架構
+USE_SQLITE_PIPELINE=true   # 啟用新架構 (FR-012)
 DATABASE_PATH=data/fairmont.db
 OPENAI_API_KEY=...         # LLM API 金鑰 (APMIC API)
+OPENAI_API_BASE=https://api.apmic-ai.com/v1
+OPENAI_MODEL=gemma-3-12b   # 使用 Bearer token 認證
 ```
 
 ## 測試
@@ -101,6 +128,18 @@ OPENAI_API_KEY=...         # LLM API 金鑰 (APMIC API)
 - `test_db_path`: 臨時資料庫路徑
 - `test_client`: FastAPI TestClient
 - `mock_batch_uuid`: 固定 UUID 供測試用
+
+## 重要工具函式
+
+### Item No. 正規化 (`src/utils/item_normalizer.py`)
+- `normalize_item_no()`: 去空格、統一 10+ 種 Unicode 破折號、大寫
+- `is_fabric_item()`: 判斷 500-599 系列為面料
+- `extract_base_item_no()`: 移除 `.1`, `.2`, `A`, `B` 等後綴
+
+### 面料格式化 (`src/utils/fabric_formatter.py`)
+- `format_fabric_dimension()`: 組合 Content-Vendor-Brand-Pattern-Width pattern/plain
+- `format_fabric_description()`: 產生 `{material_type} to {target_item_no}`
+- `extract_location_from_description()`: 提取 `@` 後文字
 
 ## 功能規格
 

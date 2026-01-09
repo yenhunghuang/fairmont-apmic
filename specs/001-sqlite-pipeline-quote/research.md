@@ -34,7 +34,7 @@ async def process_pdfs(
     # 1. 驗證檔案類型
     # 2. 計算 file hash (快取查詢)
     # 3. 執行多階段管線
-    # 4. 返回 15 欄位 JSON
+    # 4. 返回 17 欄位 JSON
     ...
 ```
 
@@ -96,7 +96,7 @@ def parse_pdf(file_path: str):
 | 4 | MERGING | 正規化結果 | 合併數量總表與規格表 |
 | 5 | FURNITURE_EXTRACTION | 合併結果 | 家具項目詳情 |
 | 6 | FABRIC_LINKING | 家具項目 | 面料關聯完成 |
-| 7 | EXPORT | 完整資料 | 15 欄位 JSON |
+| 7 | EXPORT | 完整資料 | 17 欄位 JSON |
 
 ### Checkpoint Pattern
 ```sql
@@ -175,7 +175,7 @@ PRAGMA cache_size = -64000;  -- 64MB cache (地端環境)
 
 ## 7. API 回應格式
 
-### Decision: 符合前端需求的 15 欄位 JSON 結構
+### Decision: 符合前端需求的 17 欄位 JSON 結構
 
 ```json
 {
@@ -185,19 +185,40 @@ PRAGMA cache_size = -64000;  -- 64MB cache (地端環境)
     {
       "no": 1,
       "item_no": "DLX-100",
-      "description": "Bedside Table",
+      "description": "King Bed",
       "photo_base64": "...",
-      "dimension": "600 x 450 x 550",
+      "dimension": "W2130 x D1930 x H290mm",
       "qty": 10,
       "uom": "ea",
-      "materials_used": "Solid Oak, Lacquered Finish",
-      "location": "Deluxe Room",
-      "note": "",
-      "brand": "Custom",
+      "materials_used": "10mm THK Rebonded FR Foam",
+      "location": "King Deluxe Room",
+      "note": null,
+      "brand": null,
       "unit_rate": null,
       "amount": null,
-      "cbm": null,
-      "total_cbm": null
+      "unit_cbm": null,
+      "total_cbm": null,
+      "category": 1,
+      "affiliate": null
+    },
+    {
+      "no": 2,
+      "item_no": "DLX-505",
+      "description": "Fabric to DLX-100",
+      "photo_base64": "...",
+      "dimension": "55% cotton-Sankon-Bravo-BV106-140cm pattern",
+      "qty": null,
+      "uom": "m",
+      "materials_used": "Pattern: BV106. Color: Cream",
+      "location": "DLX-100",
+      "note": null,
+      "brand": "Bravo Collection",
+      "unit_rate": null,
+      "amount": null,
+      "unit_cbm": null,
+      "total_cbm": null,
+      "category": 5,
+      "affiliate": "DLX-100"
     }
   ],
   "errors": [],

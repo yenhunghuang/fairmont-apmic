@@ -69,9 +69,9 @@
 
 ## Phase 3: User Story 1 - PDF 上傳與報價單產出 (Priority: P1) 🎯 MVP ✅ 完成
 
-**Goal**: 使用者上傳多份 PDF，系統產出 15 欄位 JSON 報價單
+**Goal**: 使用者上傳多份 PDF，系統產出 17 欄位 JSON 報價單
 
-**Independent Test**: 上傳完整 PDF 組合，驗證回傳 JSON 包含正確 15 欄位、合併數量、嵌入圖片 (Base64)
+**Independent Test**: 上傳完整 PDF 組合，驗證回傳 JSON 包含正確 17 欄位、合併數量、嵌入圖片 (Base64)
 
 ### Tests for User Story 1 ✅
 
